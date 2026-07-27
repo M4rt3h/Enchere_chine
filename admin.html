@@ -10,6 +10,12 @@
 <nav><a href="index.html">← Retour</a></nav>
 <h1>Admin ⚙️</h1>
 
+<div class="card" id="event-toggle-card">
+  <h2>Statut de l'événement</h2>
+  <p id="event-status">...</p>
+  <button id="event-btn" onclick="toggleEvent()"></button>
+</div>
+
 <div class="card">
   <h2>Joueurs</h2>
   <input id="new-player" placeholder="Pseudo">
@@ -34,6 +40,21 @@
 <script src="firebase-config.js"></script>
 <script src="app.js"></script>
 <script>
+db.ref('event/started').on('value', snap => {
+  const started = !!snap.val();
+  document.getElementById('event-status').textContent = started
+    ? '🟢 Ouvert — les visiteurs voient le login.'
+    : '🔴 Fermé — les visiteurs voient l\'écran d\'attente.';
+  const btn = document.getElementById('event-btn');
+  btn.textContent = started ? '🔒 Fermer / repasser en attente' : '🔓 Ouvrir les enchères';
+  btn.className = started ? 'secondary' : '';
+});
+function toggleEvent() {
+  db.ref('event/started').once('value').then(snap => {
+    db.ref('event/started').set(!snap.val());
+  });
+}
+
 db.ref('players').on('value', snap => {
   const players = snap.val() || {};
   document.getElementById('players-list').innerHTML =

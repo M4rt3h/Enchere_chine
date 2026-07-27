@@ -8,7 +8,14 @@
 </head>
 <body>
 
-<div id="login-screen">
+<div id="waiting-screen" class="card waiting-panel" style="display:none">
+  <div class="lantern">🏮</div>
+  <h2>Patience...</h2>
+  <p style="color:var(--ink-soft)">Les enchères commenceront dès que tout le monde sera réuni.</p>
+  <div class="waiting-dots"><span></span><span></span><span></span></div>
+</div>
+
+<div id="login-screen" style="display:none">
   <h1>Enchères 🏷️</h1>
   <p>Choisis ton pseudo pour commencer.</p>
   <select id="pseudo-select"><option value="">-- choisir --</option></select>
@@ -76,7 +83,22 @@ function showMain() {
   });
 }
 
-if (getPseudo()) showMain();
+function renderScreen(started) {
+  const waiting = document.getElementById('waiting-screen');
+  const loginS = document.getElementById('login-screen');
+  const mainS = document.getElementById('main-screen');
+  if (!started) {
+    waiting.style.display = 'block';
+    loginS.style.display = 'none';
+    mainS.style.display = 'none';
+    return;
+  }
+  waiting.style.display = 'none';
+  if (getPseudo()) showMain();
+  else loginS.style.display = 'block';
+}
+
+db.ref('event/started').on('value', snap => renderScreen(!!snap.val()));
 </script>
 </body>
 </html>
