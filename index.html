@@ -27,7 +27,12 @@
     <span id="who"></span>
     <span id="budget-line">Budget restant: <b id="budget-left"></b> ¥</span>
   </div>
-  <nav><a href="admin.html">⚙️ Admin</a><a href="#" onclick="changeProfile()">🔁 Changer</a></nav>
+  <nav>
+    <a href="admin.html">⚙️ Admin</a>
+    <a href="bilan.html">📊 Bilan</a>
+    <a href="#" onclick="changeProfile()">🔁 Changer</a>
+    <button class="sound-btn" onclick="toggleSound()">🔊</button>
+  </nav>
   <h2>Objets</h2>
   <div id="items-list"></div>
 </div>
@@ -83,19 +88,54 @@ function showMain() {
         (window._monBudget || 0) - computeBudgetEngage(items, pseudo);
     }
 
+    const entries = Object.entries(items);
+    const active = entries.find(([, it]) => it.status === 'active');
+    const pending = entries.filter(([, it]) => it.status === 'pending');
+    const ended = entries.filter(([, it]) => it.status === 'ended');
+
     const list = document.getElementById('items-list');
-    list.innerHTML = '';
-    Object.entries(items).forEach(([id, it]) => {
-      const div = document.createElement('div');
-      div.className = 'card';
-      div.innerHTML = `
-        ${it.imageUrl ? `<img src="${it.imageUrl}">` : ''}
-        <h3>${it.name} <span class="badge ${it.status}">${it.status}</span></h3>
-        <div class="price">${it.currentBid} ¥ ${it.currentBidder ? '(' + it.currentBidder + ')' : ''}</div>
-        <a href="item.html?id=${id}"><button>${visitor ? 'Voir' : 'Voir / Enchérir'}</button></a>
-      `;
-      list.appendChild(div);
-    });
+    let html = '';
+
+    if (active) {
+      const [id, it] = active;
+      html += `
+        <div class="card hero-item">
+          <div class="hero-label">🔥 Objet du moment</div>
+          ${it.imageUrl ? `<img src="${it.imageUrl}">` : ''}
+          <h3>${it.name}</h3>
+          <div class="price">${it.currentBid} ¥ ${it.currentBidder ? '(' + it.currentBidder + ')' : ''}</div>
+          <div class="timer" id="hero-timer" data-end="${it.endTime}"></div>
+          <a href="item.html?id=${id}"><button>${visitor ? 'Voir' : 'Voir / Enchérir'}</button></a>
+        </div>`;
+    }
+
+    if (pending.length) {
+      html += `<div class="card"><h3>🕒 À venir</h3>` + pending.map(([id, it], i) => `
+        <a href="item.html?id=${id}" style="color:inherit">
+          <div class="queue-row"><span class="queue-num">${i + 1}</span>${it.name} <span style="color:var(--ink-soft);margin-left:auto">dès ${it.currentBid} ¥</span></div>
+        </a>`).join('') + `</div>`;
+    }
+
+    if (ended.length) {
+      html += `<div class="card"><h3>🔨 Terminés</h3>` + ended.map(([id, it]) => `
+        <a href="item.html?id=${id}" style="color:inherit">
+          <div class="ended-row">${it.name} <span style="margin-left:auto"><b>${it.currentBidder || '—'}</b> · ${it.currentBid} ¥</span></div>
+        </a>`).join('') + `</div>`;
+    }
+
+    if (!active && !pending.length && !ended.length) html = '<p style="text-align:center;color:var(--ink-soft)">Aucun objet pour l\'instant.</p>';
+    list.innerHTML = html;
+
+    clearInterval(window._heroTick);
+    if (active) {
+      window._heroTick = setInterval(() => {
+        const el = document.getElementById('hero-timer');
+        if (!el) return clearInterval(window._heroTick);
+        const remaining = parseInt(el.dataset.end, 10) - Date.now();
+        el.textContent = '⏱️ ' + fmtTime(remaining);
+        el.className = 'timer' + (remaining < 15000 ? ' urgent' : '');
+      }, 250);
+    }
   });
 }
 
@@ -115,6 +155,7 @@ function renderScreen(started) {
 }
 
 db.ref('event/started').on('value', snap => renderScreen(!!snap.val()));
+initSoundBtn();
 </script>
 </body>
 </html>

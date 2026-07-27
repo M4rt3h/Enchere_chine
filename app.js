@@ -39,6 +39,34 @@ function fmtTime(ms) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
+function getSoundOn() { return localStorage.getItem('soundOn') !== '0'; }
+function setSoundOn(on) {
+  localStorage.setItem('soundOn', on ? '1' : '0');
+  document.querySelectorAll('.sound-btn').forEach(b => b.textContent = on ? '🔊' : '🔇');
+}
+function toggleSound() { setSoundOn(!getSoundOn()); }
+function initSoundBtn() { document.querySelectorAll('.sound-btn').forEach(b => b.textContent = getSoundOn() ? '🔊' : '🔇'); }
+
+function playTone(freq, duration = 150, type = 'sine') {
+  if (!getSoundOn()) return;
+  try {
+    const ctx = window._audioCtx || (window._audioCtx = new (window.AudioContext || window.webkitAudioContext)());
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration / 1000);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration / 1000);
+  } catch (e) {}
+}
+function playDing() { playTone(1300, 130, 'sine'); }
+function playGong() { playTone(160, 1000, 'sine'); }
+function vibrate(pattern) { if (navigator.vibrate) navigator.vibrate(pattern); }
+
 function resizeImageToBase64(file, maxSize = 500, quality = 0.55) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

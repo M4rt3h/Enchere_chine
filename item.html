@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<nav><a href="index.html">← Retour</a></nav>
+<nav><a href="index.html">← Retour</a><button class="sound-btn" onclick="toggleSound()">🔊</button></nav>
 <div id="content" class="card">Chargement...</div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
@@ -16,10 +16,12 @@
 <script src="app.js"></script>
 <script>
 const { pseudo, visitor } = requireSession();
+initSoundBtn();
 const id = new URLSearchParams(location.search).get('id');
 const itemRef = db.ref('items/' + id);
 let tickInterval;
 let lastBidSeen = null;
+let lastBidder = null;
 let sealShown = false;
 
 itemRef.on('value', snap => {
@@ -27,6 +29,13 @@ itemRef.on('value', snap => {
   if (!it) { document.getElementById('content').innerHTML = 'Objet introuvable.'; return; }
   render(it);
 });
+
+function leadingTag(it, bids) {
+  if (it.currentBidder === pseudo) return '<div class="leading-tag win">🟢 Tu es en tête</div>';
+  const jaiDejaMise = bids.some(b => b.pseudo === pseudo);
+  if (jaiDejaMise) return `<div class="leading-tag lose">🔴 Devancé par ${it.currentBidder}</div>`;
+  return '';
+}
 
 function render(it) {
   clearInterval(tickInterval);
@@ -39,6 +48,7 @@ function render(it) {
     <h2>${it.name} <span class="badge ${it.status}">${it.status}</span></h2>
     <p>${it.description || ''}</p>
     <div class="price" id="price-el">${it.currentBid} ¥ ${it.currentBidder ? '— ' + it.currentBidder : '(prix de départ)'}<span class="mini-seal" id="mini-seal">叫</span></div>
+    ${!visitor && it.status === 'active' ? leadingTag(it, bids) : ''}
     <div class="timer" id="timer"></div>
     <div id="actions"></div>
     <h3>Historique</h3>
@@ -51,12 +61,16 @@ function render(it) {
     mini.classList.add('show');
     priceEl.classList.add('flash');
     setTimeout(() => { mini.classList.remove('show'); priceEl.classList.remove('flash'); }, 700);
+    playDing();
+    if (lastBidder === pseudo && it.currentBidder !== pseudo) vibrate([100, 60, 100]);
   }
   lastBidSeen = it.currentBid;
+  lastBidder = it.currentBidder;
 
   if (it.status === 'ended' && !sealShown) {
     sealShown = true;
     requestAnimationFrame(() => document.getElementById('seal-final').classList.add('show'));
+    playGong();
   }
 
   const actions = document.getElementById('actions');

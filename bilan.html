@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bilan</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav><a href="index.html">← Retour</a></nav>
+<h1>📊 Bilan</h1>
+<div id="content"><p style="color:var(--ink-soft)">Chargement...</p></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+<script>
+db.ref('items').once('value').then(snap => {
+  const items = snap.val() || {};
+  const ended = Object.values(items).filter(it => it.status === 'ended' && it.currentBidder);
+
+  const c = document.getElementById('content');
+  if (!ended.length) {
+    c.innerHTML = '<p style="color:var(--ink-soft)">Aucun objet terminé pour l\'instant.</p>';
+    return;
+  }
+
+  const parWinner = {};
+  ended.forEach(it => {
+    if (!parWinner[it.currentBidder]) parWinner[it.currentBidder] = { total: 0, items: [] };
+    parWinner[it.currentBidder].total += it.currentBid;
+    parWinner[it.currentBidder].items.push(it);
+  });
+
+  let html = Object.entries(parWinner).map(([who, data]) => `
+    <div class="card">
+      <h2>👤 ${who}</h2>
+      <p style="color:var(--ink-soft)">Total : <b style="color:var(--jade)">${data.total} ¥</b></p>
+      ${data.items.map(it => `<div class="ended-row">${it.name}<span style="margin-left:auto">${it.currentBid} ¥</span></div>`).join('')}
+    </div>
+  `).join('');
+
+  const totalGeneral = ended.reduce((s, it) => s + it.currentBid, 0);
+  html += `<div class="card" style="text-align:center"><h3>Total général</h3><div class="price">${totalGeneral} ¥</div></div>`;
+
+  c.innerHTML = html;
+});
+</script>
+</body>
+</html>
