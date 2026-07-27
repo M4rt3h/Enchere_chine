@@ -3,116 +3,80 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Admin</title>
+<title>Enchères déménagement</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<nav><a href="index.html">← Retour</a></nav>
-<h1>Admin ⚙️</h1>
 
-<div class="card">
-  <h2>Joueurs</h2>
-  <input id="new-player" placeholder="Pseudo">
-  <button onclick="addPlayer()">Ajouter joueur</button>
-  <div id="players-list"></div>
+<div id="login-screen">
+  <h1>Enchères 🏷️</h1>
+  <p>Choisis ton pseudo pour commencer.</p>
+  <select id="pseudo-select"><option value="">-- choisir --</option></select>
+  <button onclick="login()">Entrer</button>
 </div>
 
-<div class="card">
-  <h2>Ajouter un objet</h2>
-  <input id="it-name" placeholder="Nom de l'objet">
-  <textarea id="it-desc" placeholder="Description"></textarea>
-  <input id="it-price" type="number" placeholder="Prix de départ (¥)">
-  <input id="it-image" type="file" accept="image/*">
-  <button onclick="addItem()">Ajouter</button>
+<div id="main-screen" style="display:none">
+  <div class="budget-bar">
+    <span id="who"></span>
+    <span>Budget restant: <b id="budget-left"></b> ¥</span>
+  </div>
+  <nav><a href="admin.html">⚙️ Admin</a></nav>
+  <h2>Objets</h2>
+  <div id="items-list"></div>
 </div>
-
-<h2>Objets existants</h2>
-<div id="items-list"></div>
 
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script src="app.js"></script>
 <script>
-db.ref('players').on('value', snap => {
-  const players = snap.val() || {};
-  document.getElementById('players-list').innerHTML =
-    Object.entries(players).map(([p, budget]) => `
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <span style="flex:1">👤 ${p} — <b>${budget} ¥</b></span>
-        <input type="number" id="adj-${p}" placeholder="+/- ¥" style="width:90px;margin:0">
-        <button style="width:auto" onclick="adjustBudget('${p}')">OK</button>
-      </div>
-    `).join('') || '<i>Aucun joueur</i>';
-});
-
-function addPlayer() {
-  const p = document.getElementById('new-player').value.trim();
-  if (!p) return;
-  db.ref('players/' + p).set(BUDGET_PAR_PERSONNE);
-  document.getElementById('new-player').value = '';
-}
-
-function adjustBudget(p) {
-  const input = document.getElementById('adj-' + p);
-  const delta = parseInt(input.value, 10);
-  if (!delta) return;
-  db.ref('players/' + p).transaction(b => (b || 0) + delta);
-  input.value = '';
-}
-
-async function addItem() {
-  const name = document.getElementById('it-name').value.trim();
-  const description = document.getElementById('it-desc').value.trim();
-  const startPrice = parseInt(document.getElementById('it-price').value, 10);
-  const file = document.getElementById('it-image').files[0];
-  if (!name || !startPrice) return alert('Nom et prix requis');
-
-  let imageUrl = '';
-  if (file) imageUrl = await resizeImageToBase64(file);
-
-  db.ref('items').push({
-    name, description, imageUrl,
-    currentBid: startPrice,
-    currentBidder: '',
-    status: 'pending',
-    endTime: 0,
-    bids: {}
-  });
-
-  document.getElementById('it-name').value = '';
-  document.getElementById('it-desc').value = '';
-  document.getElementById('it-price').value = '';
-  document.getElementById('it-image').value = '';
-}
-
-db.ref('items').on('value', snap => {
-  const items = snap.val() || {};
-  const list = document.getElementById('items-list');
-  list.innerHTML = '';
-  Object.entries(items).forEach(([id, it]) => {
-    const div = document.createElement('div');
-    div.className = 'card';
-    div.innerHTML = `
-      <h3>${it.name} <span class="badge ${it.status}">${it.status}</span></h3>
-      <div class="price">${it.currentBid} ¥</div>
-      ${it.status === 'pending' ? `<button onclick="startItem('${id}')">▶️ Lancer (5 min)</button>` : ''}
-      <button class="secondary" onclick="deleteItem('${id}')">🗑️ Supprimer</button>
-    `;
-    list.appendChild(div);
+db.ref('players').once('value').then(snap => {
+  const sel = document.getElementById('pseudo-select');
+  Object.keys(snap.val() || {}).forEach(p => {
+    const o = document.createElement('option');
+    o.value = p; o.textContent = p;
+    sel.appendChild(o);
   });
 });
 
-function startItem(id) {
-  db.ref('items/' + id).update({
-    status: 'active',
-    endTime: Date.now() + 5 * 60 * 1000
+function login() {
+  const p = document.getElementById('pseudo-select').value;
+  if (!p) return alert('Choisis un pseudo');
+  setPseudo(p);
+  showMain();
+}
+
+function showMain() {
+  const pseudo = getPseudo();
+  if (!pseudo) return;
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('main-screen').style.display = 'block';
+  document.getElementById('who').textContent = '👤 ' + pseudo;
+
+  db.ref('players/' + pseudo).on('value', s => window._monBudget = s.val() || 0);
+
+  db.ref('items').on('value', snap => {
+    const items = snap.val() || {};
+    document.getElementById('budget-left').textContent =
+      (window._monBudget || 0) - computeBudgetEngage(items, pseudo);
+
+    const list = document.getElementById('items-list');
+    list.innerHTML = '';
+    Object.entries(items).forEach(([id, it]) => {
+      const div = document.createElement('div');
+      div.className = 'card';
+      div.innerHTML = `
+        ${it.imageUrl ? `<img src="${it.imageUrl}">` : ''}
+        <h3>${it.name} <span class="badge ${it.status}">${it.status}</span></h3>
+        <div class="price">${it.currentBid} ¥ ${it.currentBidder ? '(' + it.currentBidder + ')' : ''}</div>
+        <a href="item.html?id=${id}"><button>Voir / Enchérir</button></a>
+      `;
+      list.appendChild(div);
+    });
   });
 }
 
-function deleteItem(id) {
-  if (confirm('Supprimer cet objet ?')) db.ref('items/' + id).remove();
-}
+if (getPseudo()) showMain();
 </script>
 </body>
 </html>
