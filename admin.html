@@ -58,11 +58,22 @@ function toggleEvent() {
 db.ref('players').on('value', snap => {
   const players = snap.val() || {};
   document.getElementById('players-list').innerHTML =
-    Object.entries(players).map(([p, budget]) => `
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-        <span style="flex:1">👤 ${p} — <b>${budget} ¥</b></span>
-        <input type="number" id="adj-${p}" placeholder="+/- ¥" style="width:90px;margin:0">
+    Object.entries(players).map(([p, data]) => `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid rgba(0,0,0,0.06)">
+        ${data.avatar ? `<img src="${data.avatar}" style="width:44px;height:44px;border-radius:50%;object-fit:cover">` : `<div class="avatar-fallback" style="width:44px;height:44px;font-size:1.2em">👤</div>`}
+        <div style="flex:1">
+          <div><b>${p}</b> — ${data.budget} ¥</div>
+          <input type="file" accept="image/*" style="margin:4px 0" onchange="uploadAvatar('${p}', this.files[0])">
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:6px">
+        <input type="number" id="adj-${p}" placeholder="+/- ¥" style="width:80px;margin:0">
         <button style="width:auto" onclick="adjustBudget('${p}')">OK</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:16px">
+        <input id="rename-${p}" placeholder="Renommer en..." style="margin:0">
+        <button style="width:auto" onclick="renamePlayer('${p}')">✏️</button>
+        <button class="secondary" style="width:auto" onclick="deletePlayer('${p}')">🗑️</button>
       </div>
     `).join('') || '<i>Aucun joueur</i>';
 });
@@ -70,7 +81,7 @@ db.ref('players').on('value', snap => {
 function addPlayer() {
   const p = document.getElementById('new-player').value.trim();
   if (!p) return;
-  db.ref('players/' + p).set(BUDGET_PAR_PERSONNE);
+  db.ref('players/' + p).set({ budget: BUDGET_PAR_PERSONNE, avatar: '' });
   document.getElementById('new-player').value = '';
 }
 
@@ -78,8 +89,45 @@ function adjustBudget(p) {
   const input = document.getElementById('adj-' + p);
   const delta = parseInt(input.value, 10);
   if (!delta) return;
-  db.ref('players/' + p).transaction(b => (b || 0) + delta);
+  db.ref('players/' + p + '/budget').transaction(b => (b || 0) + delta);
   input.value = '';
+}
+
+async function uploadAvatar(p, file) {
+  if (!file) return;
+  const avatar = await resizeImageToBase64(file, 300, 0.6);
+  db.ref('players/' + p + '/avatar').set(avatar);
+}
+
+function deletePlayer(p) {
+  if (!confirm(`Supprimer ${p} ? (son historique d'enchères reste visible, juste plus de login possible)`)) return;
+  db.ref('players/' + p).remove();
+}
+
+async function renamePlayer(oldName) {
+  const newName = document.getElementById('rename-' + oldName).value.trim();
+  if (!newName) return;
+  const [playerSnap, itemsSnap] = await Promise.all([
+    db.ref('players/' + oldName).once('value'),
+    db.ref('items').once('value')
+  ]);
+  const data = playerSnap.val();
+  if (!data) return;
+
+  // met à jour les items où ce joueur est meilleur enchérisseur + son historique de mises
+  const items = itemsSnap.val() || {};
+  const updates = {};
+  Object.entries(items).forEach(([id, it]) => {
+    if (it.currentBidder === oldName) updates[`items/${id}/currentBidder`] = newName;
+    Object.entries(it.bids || {}).forEach(([bidId, b]) => {
+      if (b.pseudo === oldName) updates[`items/${id}/bids/${bidId}/pseudo`] = newName;
+    });
+  });
+  updates['players/' + newName] = data;
+  updates['players/' + oldName] = null;
+
+  await db.ref().update(updates);
+  document.getElementById('rename-' + oldName).value = '';
 }
 
 async function addItem() {

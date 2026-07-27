@@ -12,6 +12,15 @@ function requirePseudo() {
   if (!p) window.location.href = 'index.html';
   return p;
 }
+function getVisitor() { return localStorage.getItem('visitor') === '1'; }
+function setVisitor() { localStorage.removeItem('pseudo'); localStorage.setItem('visitor', '1'); }
+function clearSession() { localStorage.removeItem('pseudo'); localStorage.removeItem('visitor'); }
+function requireSession() {
+  const p = getPseudo();
+  const v = getVisitor();
+  if (!p && !v) window.location.href = 'index.html';
+  return { pseudo: p, visitor: v };
+}
 
 // Calcule le budget engagé = somme des items où pseudo est actuellement meilleur enchérisseur
 function computeBudgetEngage(items, pseudo) {

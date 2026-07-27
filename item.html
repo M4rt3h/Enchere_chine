@@ -15,7 +15,7 @@
 <script src="firebase-config.js"></script>
 <script src="app.js"></script>
 <script>
-const pseudo = requirePseudo();
+const { pseudo, visitor } = requireSession();
 const id = new URLSearchParams(location.search).get('id');
 const itemRef = db.ref('items/' + id);
 let tickInterval;
@@ -65,17 +65,21 @@ function render(it) {
   } else if (it.status === 'ended') {
     actions.innerHTML = `<p>🔨 Terminé. Gagnant : <b>${it.currentBidder || 'personne'}</b></p>`;
   } else if (it.status === 'active') {
-    const votes = it.stopVotes || {};
-    const iVoted = !!votes[pseudo];
-    const votCount = Object.keys(votes).length;
-    actions.innerHTML = `
-      <input type="number" id="bid-amount" placeholder="Ton montant (¥)" min="${it.currentBid + 1}">
-      <button onclick="placeBid(${it.currentBid})">Enchérir</button>
-      <button class="stop" onclick="toggleStopVote(${iVoted})">
-        ${iVoted ? '✅ Tu veux arrêter (annuler)' : '🛑 Je veux arrêter'}
-      </button>
-      <p style="font-size:.85em;color:#aaa">Arrêt anticipé nécessite que <b>les 2</b> soient d'accord (${votCount}/2)</p>
-    `;
+    if (visitor) {
+      actions.innerHTML = `<p style="color:var(--ink-soft)">👀 Mode visiteur — enchère en cours, tu regardes.</p>`;
+    } else {
+      const votes = it.stopVotes || {};
+      const iVoted = !!votes[pseudo];
+      const votCount = Object.keys(votes).length;
+      actions.innerHTML = `
+        <input type="number" id="bid-amount" placeholder="Ton montant (¥)" min="${it.currentBid + 1}">
+        <button onclick="placeBid(${it.currentBid})">Enchérir</button>
+        <button class="stop" onclick="toggleStopVote(${iVoted})">
+          ${iVoted ? '✅ Tu veux arrêter (annuler)' : '🛑 Je veux arrêter'}
+        </button>
+        <p style="font-size:.85em;color:#aaa">Arrêt anticipé nécessite que <b>les 2</b> soient d'accord (${votCount}/2)</p>
+      `;
+    }
     tickInterval = setInterval(() => tick(it), 250);
     tick(it);
   }
@@ -130,7 +134,7 @@ function placeBid(minBid) {
     db.ref('players/' + pseudo).once('value')
   ]).then(([itemsSnap, budgetSnap]) => {
     const items = itemsSnap.val() || {};
-    const monBudget = budgetSnap.val() || 0;
+    const monBudget = (budgetSnap.val() && budgetSnap.val().budget) || 0;
     const currentEngage = computeBudgetEngage(items, pseudo) - (items[id]?.currentBidder === pseudo ? items[id].currentBid : 0);
     if (currentEngage + amount > monBudget) {
       return alert('Budget dépassé ! Il te reste ' + (monBudget - currentEngage) + ' ¥ pour cet objet.');

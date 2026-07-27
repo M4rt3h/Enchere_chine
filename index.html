@@ -17,17 +17,17 @@
 
 <div id="login-screen" style="display:none">
   <h1>Enchères 🏷️</h1>
-  <p>Choisis ton pseudo pour commencer.</p>
-  <select id="pseudo-select"><option value="">-- choisir --</option></select>
-  <button onclick="login()">Entrer</button>
+  <p>Choisis ton profil.</p>
+  <div id="avatar-grid" style="display:flex;flex-wrap:wrap;gap:14px;justify-content:center;margin-bottom:8px"></div>
+  <button class="secondary" onclick="loginVisitor()">👀 Juste regarder (visiteur)</button>
 </div>
 
 <div id="main-screen" style="display:none">
   <div class="budget-bar">
     <span id="who"></span>
-    <span>Budget restant: <b id="budget-left"></b> ¥</span>
+    <span id="budget-line">Budget restant: <b id="budget-left"></b> ¥</span>
   </div>
-  <nav><a href="admin.html">⚙️ Admin</a></nav>
+  <nav><a href="admin.html">⚙️ Admin</a><a href="#" onclick="changeProfile()">🔁 Changer</a></nav>
   <h2>Objets</h2>
   <div id="items-list"></div>
 </div>
@@ -38,34 +38,50 @@
 <script src="app.js"></script>
 <script>
 db.ref('players').once('value').then(snap => {
-  const sel = document.getElementById('pseudo-select');
-  Object.keys(snap.val() || {}).forEach(p => {
-    const o = document.createElement('option');
-    o.value = p; o.textContent = p;
-    sel.appendChild(o);
+  const players = snap.val() || {};
+  const grid = document.getElementById('avatar-grid');
+  Object.entries(players).forEach(([p, data]) => {
+    const avatar = data && data.avatar;
+    const el = document.createElement('div');
+    el.className = 'avatar-pick';
+    el.onclick = () => { setPseudo(p); localStorage.removeItem('visitor'); showMain(); };
+    el.innerHTML = `
+      ${avatar ? `<img src="${avatar}">` : `<div class="avatar-fallback">👤</div>`}
+      <div>${p}</div>
+    `;
+    grid.appendChild(el);
   });
 });
 
-function login() {
-  const p = document.getElementById('pseudo-select').value;
-  if (!p) return alert('Choisis un pseudo');
-  setPseudo(p);
+function loginVisitor() {
+  setVisitor();
   showMain();
+}
+
+function changeProfile() {
+  clearSession();
+  location.reload();
 }
 
 function showMain() {
   const pseudo = getPseudo();
-  if (!pseudo) return;
+  const visitor = getVisitor();
+  if (!pseudo && !visitor) return;
   document.getElementById('login-screen').style.display = 'none';
   document.getElementById('main-screen').style.display = 'block';
-  document.getElementById('who').textContent = '👤 ' + pseudo;
+  document.getElementById('who').textContent = visitor ? '👀 Visiteur' : '👤 ' + pseudo;
+  document.getElementById('budget-line').style.display = visitor ? 'none' : 'inline';
 
-  db.ref('players/' + pseudo).on('value', s => window._monBudget = s.val() || 0);
+  if (!visitor) {
+    db.ref('players/' + pseudo).on('value', s => window._monBudget = (s.val() && s.val().budget) || 0);
+  }
 
   db.ref('items').on('value', snap => {
     const items = snap.val() || {};
-    document.getElementById('budget-left').textContent =
-      (window._monBudget || 0) - computeBudgetEngage(items, pseudo);
+    if (!visitor) {
+      document.getElementById('budget-left').textContent =
+        (window._monBudget || 0) - computeBudgetEngage(items, pseudo);
+    }
 
     const list = document.getElementById('items-list');
     list.innerHTML = '';
@@ -76,7 +92,7 @@ function showMain() {
         ${it.imageUrl ? `<img src="${it.imageUrl}">` : ''}
         <h3>${it.name} <span class="badge ${it.status}">${it.status}</span></h3>
         <div class="price">${it.currentBid} ¥ ${it.currentBidder ? '(' + it.currentBidder + ')' : ''}</div>
-        <a href="item.html?id=${id}"><button>Voir / Enchérir</button></a>
+        <a href="item.html?id=${id}"><button>${visitor ? 'Voir' : 'Voir / Enchérir'}</button></a>
       `;
       list.appendChild(div);
     });
@@ -94,7 +110,7 @@ function renderScreen(started) {
     return;
   }
   waiting.style.display = 'none';
-  if (getPseudo()) showMain();
+  if (getPseudo() || getVisitor()) showMain();
   else loginS.style.display = 'block';
 }
 
