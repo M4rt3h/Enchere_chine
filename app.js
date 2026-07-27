@@ -30,7 +30,7 @@ function fmtTime(ms) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
-function resizeImageToBase64(file, maxSize = 800, quality = 0.7) {
+function resizeImageToBase64(file, maxSize = 500, quality = 0.55) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = e => {

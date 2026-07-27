@@ -48,10 +48,16 @@ function render(it) {
   } else if (it.status === 'ended') {
     actions.innerHTML = `<p>🔨 Terminé. Gagnant : <b>${it.currentBidder || 'personne'}</b></p>`;
   } else if (it.status === 'active') {
+    const votes = it.stopVotes || {};
+    const iVoted = !!votes[pseudo];
+    const votCount = Object.keys(votes).length;
     actions.innerHTML = `
       <input type="number" id="bid-amount" placeholder="Ton montant (¥)" min="${it.currentBid + 1}">
       <button onclick="placeBid(${it.currentBid})">Enchérir</button>
-      <button class="stop" onclick="stopAuction()">🛑 Stop, terminer maintenant</button>
+      <button class="stop" onclick="toggleStopVote(${iVoted})">
+        ${iVoted ? '✅ Tu veux arrêter (annuler)' : '🛑 Je veux arrêter'}
+      </button>
+      <p style="font-size:.85em;color:#aaa">Arrêt anticipé nécessite que <b>les 2</b> soient d'accord (${votCount}/2)</p>
     `;
     tickInterval = setInterval(() => tick(it), 250);
     tick(it);
@@ -78,10 +84,22 @@ function endAuctionOnce() {
   });
 }
 
-function stopAuction() {
-  if (!confirm('Terminer cette enchère maintenant ?')) return;
+function toggleStopVote(currentlyVoted) {
   itemRef.transaction(it => {
-    if (it && it.status === 'active') { it.status = 'ended'; it.endTime = Date.now(); }
+    if (!it || it.status !== 'active') return it;
+    if (!it.stopVotes) it.stopVotes = {};
+    if (currentlyVoted) {
+      delete it.stopVotes[pseudo];
+    } else {
+      it.stopVotes[pseudo] = true;
+    }
+    // si les 2 joueurs ont voté stop -> fin immédiate
+    db.ref('players').once('value').then(snap => {
+      const nbPlayers = Object.keys(snap.val() || {}).length;
+      if (Object.keys(it.stopVotes).length >= nbPlayers && nbPlayers > 0) {
+        itemRef.update({ status: 'ended', endTime: Date.now() });
+      }
+    });
     return it;
   });
 }
@@ -90,11 +108,15 @@ function placeBid(minBid) {
   const amount = parseInt(document.getElementById('bid-amount').value, 10);
   if (!amount || amount <= minBid) return alert('Montant invalide, doit dépasser ' + minBid);
 
-  db.ref('items').once('value').then(snap => {
-    const items = snap.val() || {};
+  Promise.all([
+    db.ref('items').once('value'),
+    db.ref('players/' + pseudo).once('value')
+  ]).then(([itemsSnap, budgetSnap]) => {
+    const items = itemsSnap.val() || {};
+    const monBudget = budgetSnap.val() || 0;
     const currentEngage = computeBudgetEngage(items, pseudo) - (items[id]?.currentBidder === pseudo ? items[id].currentBid : 0);
-    if (currentEngage + amount > BUDGET_PAR_PERSONNE) {
-      return alert('Budget dépassé ! Il te reste ' + (BUDGET_PAR_PERSONNE - currentEngage) + ' ¥ pour cet objet.');
+    if (currentEngage + amount > monBudget) {
+      return alert('Budget dépassé ! Il te reste ' + (monBudget - currentEngage) + ' ¥ pour cet objet.');
     }
 
     itemRef.transaction(it => {
