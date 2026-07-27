@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Objet</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav><a href="index.html">← Retour</a></nav>
+<div id="content" class="card">Chargement...</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+<script>
+const pseudo = requirePseudo();
+const id = new URLSearchParams(location.search).get('id');
+const itemRef = db.ref('items/' + id);
+let tickInterval;
+
+itemRef.on('value', snap => {
+  const it = snap.val();
+  if (!it) { document.getElementById('content').innerHTML = 'Objet introuvable.'; return; }
+  render(it);
+});
+
+function render(it) {
+  clearInterval(tickInterval);
+  const c = document.getElementById('content');
+  const bids = Object.values(it.bids || {}).sort((a,b) => b.time - a.time);
+
+  c.innerHTML = `
+    ${it.imageUrl ? `<img src="${it.imageUrl}">` : ''}
+    <h2>${it.name} <span class="badge ${it.status}">${it.status}</span></h2>
+    <p>${it.description || ''}</p>
+    <div class="price">${it.currentBid} ¥ ${it.currentBidder ? '— ' + it.currentBidder : '(prix de départ)'}</div>
+    <div class="timer" id="timer"></div>
+    <div id="actions"></div>
+    <h3>Historique</h3>
+    <div class="history">${bids.map(b => `<div>${b.pseudo} → ${b.amount} ¥</div>`).join('') || '<div>Aucune enchère</div>'}</div>
+  `;
+
+  const actions = document.getElementById('actions');
+  if (it.status === 'pending') {
+    actions.innerHTML = `<p>⏳ En attente de lancement par l'admin.</p>`;
+  } else if (it.status === 'ended') {
+    actions.innerHTML = `<p>🔨 Terminé. Gagnant : <b>${it.currentBidder || 'personne'}</b></p>`;
+  } else if (it.status === 'active') {
+    actions.innerHTML = `
+      <input type="number" id="bid-amount" placeholder="Ton montant (¥)" min="${it.currentBid + 1}">
+      <button onclick="placeBid(${it.currentBid})">Enchérir</button>
+      <button class="stop" onclick="stopAuction()">🛑 Stop, terminer maintenant</button>
+    `;
+    tickInterval = setInterval(() => tick(it), 250);
+    tick(it);
+  }
+}
+
+function tick(it) {
+  const remaining = it.endTime - Date.now();
+  const el = document.getElementById('timer');
+  if (!el) return;
+  if (remaining <= 0) {
+    clearInterval(tickInterval);
+    endAuctionOnce();
+    return;
+  }
+  el.textContent = '⏱️ ' + fmtTime(remaining);
+  el.className = 'timer' + (remaining < 15000 ? ' urgent' : '');
+}
+
+function endAuctionOnce() {
+  itemRef.transaction(it => {
+    if (it && it.status === 'active') it.status = 'ended';
+    return it;
+  });
+}
+
+function stopAuction() {
+  if (!confirm('Terminer cette enchère maintenant ?')) return;
+  itemRef.transaction(it => {
+    if (it && it.status === 'active') { it.status = 'ended'; it.endTime = Date.now(); }
+    return it;
+  });
+}
+
+function placeBid(minBid) {
+  const amount = parseInt(document.getElementById('bid-amount').value, 10);
+  if (!amount || amount <= minBid) return alert('Montant invalide, doit dépasser ' + minBid);
+
+  db.ref('items').once('value').then(snap => {
+    const items = snap.val() || {};
+    const currentEngage = computeBudgetEngage(items, pseudo) - (items[id]?.currentBidder === pseudo ? items[id].currentBid : 0);
+    if (currentEngage + amount > BUDGET_PAR_PERSONNE) {
+      return alert('Budget dépassé ! Il te reste ' + (BUDGET_PAR_PERSONNE - currentEngage) + ' ¥ pour cet objet.');
+    }
+
+    itemRef.transaction(it => {
+      if (!it || it.status !== 'active') return it;
+      if (amount <= it.currentBid) return; // abort, quelqu'un a été plus rapide
+      it.currentBid = amount;
+      it.currentBidder = pseudo;
+      if (it.endTime - Date.now() < 10000) it.endTime = Date.now() + 10000; // anti-snipe
+      return it;
+    }, (err, committed, snap) => {
+      if (committed) {
+        itemRef.child('bids').push({ pseudo, amount, time: Date.now() });
+        document.getElementById('bid-amount').value = '';
+      }
+    });
+  });
+}
+</script>
+</body>
+</html>
