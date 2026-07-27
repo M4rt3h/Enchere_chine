@@ -11,3 +11,4 @@ const firebaseConfig = {
 };
 
 const BUDGET_PAR_PERSONNE = 800; // en Yuans
+const ADMIN_PASSWORD = "2303"; // mot de passe pour accéder à admin.html (protection basique, pas une vraie sécurité)

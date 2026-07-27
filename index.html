@@ -101,7 +101,7 @@ function showMain() {
       html += `
         <div class="card hero-item">
           <div class="hero-label">🔥 Objet du moment</div>
-          ${it.imageUrl ? `<img src="${it.imageUrl}">` : ''}
+          ${it.imageUrl ? `<img id="hero-img">` : ''}
           <h3>${it.name}</h3>
           <div class="price">${it.currentBid} ¥ ${it.currentBidder ? '(' + it.currentBidder + ')' : ''}</div>
           <div class="timer" id="hero-timer" data-end="${it.endTime}"></div>
@@ -125,6 +125,12 @@ function showMain() {
 
     if (!active && !pending.length && !ended.length) html = '<p style="text-align:center;color:var(--ink-soft)">Aucun objet pour l\'instant.</p>';
     list.innerHTML = html;
+
+    if (active && active[1].imageUrl) {
+      const img = document.getElementById('hero-img');
+      img.src = active[1].imageUrl;
+      img.onclick = () => openLightbox(active[1].imageUrl);
+    }
 
     clearInterval(window._heroTick);
     if (active) {

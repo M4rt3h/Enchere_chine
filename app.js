@@ -39,6 +39,22 @@ function fmtTime(ms) {
   return `${m}:${sec.toString().padStart(2, '0')}`;
 }
 
+function openLightbox(src) {
+  let overlay = document.getElementById('lightbox-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'lightbox-overlay';
+    overlay.className = 'lightbox-overlay';
+    overlay.onclick = () => overlay.classList.remove('show');
+    const img = document.createElement('img');
+    img.id = 'lightbox-img';
+    overlay.appendChild(img);
+    document.body.appendChild(overlay);
+  }
+  document.getElementById('lightbox-img').src = src;
+  overlay.classList.add('show');
+}
+
 function getSoundOn() { return localStorage.getItem('soundOn') !== '0'; }
 function setSoundOn(on) {
   localStorage.setItem('soundOn', on ? '1' : '0');

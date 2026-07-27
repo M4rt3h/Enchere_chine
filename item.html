@@ -43,7 +43,7 @@ function render(it) {
   const bids = Object.values(it.bids || {}).sort((a,b) => b.time - a.time);
 
   c.innerHTML = `
-    ${it.imageUrl ? `<img src="${it.imageUrl}">` : ''}
+    ${it.imageUrl ? `<img id="main-img" src="${it.imageUrl}">` : ''}
     <div class="seal-stamp" id="seal-final">成交</div>
     <h2>${it.name} <span class="badge ${it.status}">${it.status}</span></h2>
     <p>${it.description || ''}</p>
@@ -54,6 +54,8 @@ function render(it) {
     <h3>Historique</h3>
     <div class="history">${bids.map(b => `<div>${b.pseudo} → ${b.amount} ¥</div>`).join('') || '<div>Aucune enchère</div>'}</div>
   `;
+
+  if (it.imageUrl) document.getElementById('main-img').onclick = () => openLightbox(it.imageUrl);
 
   if (lastBidSeen !== null && it.currentBid !== lastBidSeen) {
     const mini = document.getElementById('mini-seal');

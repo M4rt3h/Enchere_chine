@@ -8,6 +8,14 @@
 </head>
 <body>
 <nav><a href="index.html">← Retour</a></nav>
+
+<div id="admin-gate" class="card" style="text-align:center;margin-top:15vh">
+  <h2>🔒 Accès admin</h2>
+  <input type="password" id="admin-pass" placeholder="Mot de passe">
+  <button onclick="checkAdminPass()">Entrer</button>
+</div>
+
+<div id="admin-content" style="display:none">
 <h1>Admin ⚙️</h1>
 
 <div class="card" id="event-toggle-card">
@@ -183,6 +191,24 @@ function startItem(id) {
 
 function deleteItem(id) {
   if (confirm('Supprimer cet objet ?')) db.ref('items/' + id).remove();
+}
+</script>
+</div>
+
+<script>
+if (localStorage.getItem('isAdmin') === '1') {
+  document.getElementById('admin-gate').style.display = 'none';
+  document.getElementById('admin-content').style.display = 'block';
+}
+function checkAdminPass() {
+  const val = document.getElementById('admin-pass').value;
+  if (val === ADMIN_PASSWORD) {
+    localStorage.setItem('isAdmin', '1');
+    document.getElementById('admin-gate').style.display = 'none';
+    document.getElementById('admin-content').style.display = 'block';
+  } else {
+    alert('Mot de passe incorrect');
+  }
 }
 </script>
 </body>

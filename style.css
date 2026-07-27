@@ -96,6 +96,30 @@ a { color: var(--seal); text-decoration: none; font-weight: 600; }
   max-height: 260px;
   object-fit: cover;
   display: block;
+  cursor: pointer;
+}
+
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10,10,14,0.85);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+  padding: 20px;
+}
+.lightbox-overlay.show { opacity: 1; pointer-events: auto; }
+.lightbox-overlay img {
+  max-width: 92vw;
+  max-height: 88vh;
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  cursor: zoom-out;
 }
 
 .price { font-size: 1.5em; font-weight: 700; color: var(--jade); letter-spacing: -0.01em; transition: color .3s; }
