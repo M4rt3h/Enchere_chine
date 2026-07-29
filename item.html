@@ -45,6 +45,7 @@ function render(it) {
   c.innerHTML = `
     ${it.imageUrl ? `<img id="main-img" src="${it.imageUrl}">` : ''}
     <div class="seal-stamp" id="seal-final">成交</div>
+    <div class="victory-badge" id="victory-badge"></div>
     <h2>${it.name} <span class="badge ${it.status}">${it.status}</span></h2>
     <p>${it.description || ''}</p>
     <div class="price" id="price-el">${it.currentBid} ¥ ${it.currentBidder ? '— ' + it.currentBidder : '(prix de départ)'}<span class="mini-seal" id="mini-seal">叫</span></div>
@@ -73,6 +74,17 @@ function render(it) {
     sealShown = true;
     requestAnimationFrame(() => document.getElementById('seal-final').classList.add('show'));
     playGong();
+
+    if (it.currentBidder) {
+      db.ref('players/' + it.currentBidder + '/victory').once('value').then(vsnap => {
+        const v = vsnap.val();
+        if (v && v.enabled && (v.image || v.text)) {
+          const badge = document.getElementById('victory-badge');
+          badge.innerHTML = `${v.image ? `<img src="${v.image}">` : ''}${v.text ? `<div class="victory-text">${v.text}</div>` : ''}`;
+          setTimeout(() => badge.classList.add('show'), 500);
+        }
+      });
+    }
   }
 
   const actions = document.getElementById('actions');

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enchères — Mode TV</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="tv-mode">
+<span class="tv-floating-lantern" style="top:6%;left:4%">🏮</span>
+<span class="tv-floating-lantern" style="top:10%;right:6%;animation-delay:1.5s">🏮</span>
+
+<nav><h1 style="margin:0;flex:1">🏮 Enchères en direct</h1><button class="sound-btn" onclick="toggleSound()">🔊</button></nav>
+
+<div class="tv-grid">
+  <div class="tv-hero card" id="tv-hero">Chargement...</div>
+  <div class="tv-side card">
+    <h2>🏆 Classement</h2>
+    <div id="tv-leaderboard"></div>
+  </div>
+</div>
+
+<div class="tv-ticker"><div class="tv-ticker-track" id="tv-ticker-track">Bienvenue !</div></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+<script>
+initSoundBtn();
+let items = {};
+let players = {};
+let prevItems = {};
+let justEnded = null;
+let justEndedTimer = null;
+let heroTickInterval = null;
+
+db.ref('items').on('value', snap => {
+  const newItems = snap.val() || {};
+  Object.entries(newItems).forEach(([id, it]) => {
+    const before = prevItems[id];
+    if (before && before.status === 'active' && it.status === 'ended') {
+      justEnded = { id, item: it };
+      clearTimeout(justEndedTimer);
+      justEndedTimer = setTimeout(() => { justEnded = null; render(); }, 6000);
+      playGong();
+    }
+  });
+  prevItems = newItems;
+  items = newItems;
+  render();
+});
+db.ref('players').on('value', snap => { players = snap.val() || {}; render(); });
+
+function render() {
+  clearInterval(heroTickInterval);
+  const entries = Object.entries(items);
+  const activeEntry = entries.find(([, it]) => it.status === 'active');
+  const pendingEntries = entries.filter(([, it]) => it.status === 'pending');
+  const hero = document.getElementById('tv-hero');
+
+  if (justEnded) {
+    renderEnded(hero, justEnded.item);
+  } else if (activeEntry) {
+    renderActive(hero, activeEntry);
+  } else if (pendingEntries.length) {
+    renderWaiting(hero, pendingEntries[0][1]);
+  } else if (entries.length) {
+    renderIdle(hero, "Tout est terminé — merci d'avoir joué ! 🎉");
+  } else {
+    renderIdle(hero, "En attente d'objets...");
+  }
+  renderLeaderboard();
+  renderTicker();
+}
+
+function renderActive(hero, [id, it]) {
+  hero.innerHTML = `
+    <div class="hero-label">🔥 En ce moment</div>
+    ${it.imageUrl ? `<img src="${it.imageUrl}">` : ''}
+    <h1>${it.name}</h1>
+    <div class="tv-price">${it.currentBid} ¥</div>
+    <div class="tv-leader-name">${it.currentBidder ? '👑 ' + it.currentBidder + ' est en tête' : 'Personne n\'a encore misé'}</div>
+    <div class="tv-timer" id="tv-timer"></div>
+  `;
+  heroTickInterval = setInterval(() => {
+    const el = document.getElementById('tv-timer');
+    if (!el) return clearInterval(heroTickInterval);
+    const remaining = it.endTime - Date.now();
+    el.textContent = '⏱️ ' + fmtTime(remaining);
+    el.className = 'tv-timer' + (remaining < 15000 ? ' urgent' : '');
+  }, 200);
+}
+
+function renderEnded(hero, it) {
+  hero.innerHTML = `
+    <div class="hero-label" style="background:var(--jade)">🔨 Adjugé !</div>
+    ${it.imageUrl ? `<img src="${it.imageUrl}">` : ''}
+    <h1>${it.name}</h1>
+    <div class="tv-price">${it.currentBid} ¥</div>
+    <div class="tv-leader-name">Remporté par <b>${it.currentBidder || '—'}</b></div>
+  `;
+  if (it.currentBidder) {
+    db.ref('players/' + it.currentBidder + '/victory').once('value').then(vsnap => {
+      const v = vsnap.val();
+      if (v && v.enabled && (v.image || v.text)) {
+        hero.innerHTML += `
+          <div style="margin-top:16px;display:flex;align-items:center;gap:14px;justify-content:center">
+            ${v.image ? `<img src="${v.image}" style="width:90px;height:90px;border-radius:18px;object-fit:cover">` : ''}
+            ${v.text ? `<div style="font-size:1.4em;font-weight:800;color:var(--seal)">${v.text}</div>` : ''}
+          </div>`;
+      }
+    });
+  }
+}
+
+function renderWaiting(hero, it) {
+  hero.innerHTML = `
+    <div class="lantern" style="font-size:3em">🏮</div>
+    <h1>Prochain objet</h1>
+    <h2 style="color:var(--ink-soft)">${it.name}</h2>
+    <p>Départ à ${it.currentBid} ¥ — en attente de lancement par l'admin</p>
+  `;
+}
+
+function renderIdle(hero, msg) {
+  hero.innerHTML = `<div class="lantern" style="font-size:3em">🏮</div><h1>${msg}</h1>`;
+}
+
+function renderLeaderboard() {
+  const rows = Object.entries(players).map(([p, data]) => ({
+    pseudo: p,
+    avatar: data.avatar,
+    total: computeBudgetEngage(items, p)
+  })).sort((a, b) => b.total - a.total);
+
+  const medals = ['🥇', '🥈', '🥉'];
+  document.getElementById('tv-leaderboard').innerHTML = rows.map((r, i) => `
+    <div class="tv-lb-row">
+      <span class="tv-lb-rank">${medals[i] || (i + 1)}</span>
+      ${r.avatar ? `<img class="tv-lb-avatar" src="${r.avatar}">` : `<div class="avatar-fallback tv-lb-avatar" style="font-size:1em">👤</div>`}
+      <span>${r.pseudo}</span>
+      <span class="tv-lb-total">${r.total} ¥</span>
+    </div>
+  `).join('') || '<p style="color:var(--ink-soft)">Aucun joueur.</p>';
+}
+
+function renderTicker() {
+  const allBids = [];
+  Object.values(items).forEach(it => {
+    Object.values(it.bids || {}).forEach(b => allBids.push({ ...b, itemName: it.name }));
+  });
+  allBids.sort((a, b) => b.time - a.time);
+  const recent = allBids.slice(0, 15);
+  const text = recent.length
+    ? recent.map(b => `${b.pseudo} → ${b.amount} ¥ sur ${b.itemName}`).join('  •  ')
+    : 'En attente des premières enchères...';
+  const track = document.getElementById('tv-ticker-track');
+  track.textContent = text + '   •   ' + text;
+}
+</script>
+</body>
+</html>

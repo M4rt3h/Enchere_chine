@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mon profil</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<nav><a href="index.html">← Retour</a></nav>
+<div id="content">Chargement...</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<script src="app.js"></script>
+<script>
+const { pseudo, visitor } = requireSession();
+const c = document.getElementById('content');
+
+if (visitor) {
+  c.innerHTML = `<div class="card"><p>Le mode visiteur n'a pas de profil à configurer. Connecte-toi avec un pseudo depuis l'accueil pour régler ton message de victoire.</p></div>`;
+} else {
+  db.ref('players/' + pseudo).once('value').then(snap => {
+    const data = snap.val() || {};
+    const victory = data.victory || { enabled: false, image: '', text: '' };
+
+    c.innerHTML = `
+      <h1>👤 ${pseudo}</h1>
+      <div class="card">
+        <h2>🎉 Message de victoire</h2>
+        <p style="color:var(--ink-soft);font-size:.9em">Affiché en grand (comme le sceau) quand tu remportes un objet.</p>
+        <label style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+          <input type="checkbox" id="v-enabled" ${victory.enabled ? 'checked' : ''} style="width:auto">
+          Activer un message quand je gagne
+        </label>
+        <div id="v-fields" style="${victory.enabled ? '' : 'opacity:.4;pointer-events:none'}">
+          <img id="v-preview" src="${victory.image || ''}" style="${victory.image ? '' : 'display:none'};width:90px;height:90px;border-radius:16px;object-fit:cover;margin-bottom:8px">
+          <input type="file" accept="image/*" id="v-image">
+          <input id="v-text" placeholder="Phrase à afficher (optionnel)" value="${victory.text || ''}">
+        </div>
+        <button onclick="saveVictory()">Enregistrer</button>
+        <button class="secondary" onclick="resetVictory()">🗑️ Réinitialiser</button>
+      </div>
+    `;
+
+    document.getElementById('v-enabled').onchange = e => {
+      document.getElementById('v-fields').style.opacity = e.target.checked ? '1' : '.4';
+      document.getElementById('v-fields').style.pointerEvents = e.target.checked ? 'auto' : 'none';
+    };
+    document.getElementById('v-image').onchange = async e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const b64 = await resizeImageToBase64(file, 300, 0.6);
+      const prev = document.getElementById('v-preview');
+      prev.src = b64;
+      prev.style.display = 'block';
+      prev.dataset.pending = b64;
+    };
+  });
+}
+
+function saveVictory() {
+  const enabled = document.getElementById('v-enabled').checked;
+  const text = document.getElementById('v-text').value.trim();
+  const preview = document.getElementById('v-preview');
+  const image = preview.dataset.pending || (preview.style.display !== 'none' ? preview.src : '');
+  db.ref('players/' + pseudo + '/victory').set({ enabled, image, text });
+  alert('Enregistré !');
+}
+
+function resetVictory() {
+  if (!confirm('Supprimer ton message de victoire ?')) return;
+  db.ref('players/' + pseudo + '/victory').remove();
+  location.reload();
+}
+</script>
+</body>
+</html>

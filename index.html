@@ -30,6 +30,8 @@
   <nav>
     <a href="admin.html">⚙️ Admin</a>
     <a href="bilan.html">📊 Bilan</a>
+    <a href="tv.html">🖥️ TV</a>
+    <a href="profil.html" id="nav-profil">🎉 Mon profil</a>
     <a href="#" onclick="changeProfile()">🔁 Changer</a>
     <button class="sound-btn" onclick="toggleSound()">🔊</button>
   </nav>
@@ -76,6 +78,7 @@ function showMain() {
   document.getElementById('main-screen').style.display = 'block';
   document.getElementById('who').textContent = visitor ? '👀 Visiteur' : '👤 ' + pseudo;
   document.getElementById('budget-line').style.display = visitor ? 'none' : 'inline';
+  document.getElementById('nav-profil').style.display = visitor ? 'none' : 'inline';
 
   if (!visitor) {
     db.ref('players/' + pseudo).on('value', s => window._monBudget = (s.val() && s.val().budget) || 0);
